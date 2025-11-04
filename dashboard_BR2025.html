@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Dashboard de Análise de Tempos - Brasileirão 2025</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@sgratzl/chartjs-chart-boxplot@3.10.0/build/index.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@1.4.0/dist/chartjs-plugin-annotation.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+  :root {
+    --font-family: 'Inter', system-ui, sans-serif;
+    --bg-start: #f8f9fa; --bg-end: #e9ecef;
+    --card-bg: rgba(255, 255, 255, 0.9);
+    --text-primary: #1a202c; --text-secondary: #4a5568;
+    --border-color: rgba(0, 0, 0, 0.1);
+    --accent: #00b894; --accent-glow: rgba(0, 184, 148, 0.3);
+    --shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+  }
+  [data-theme="dark"] {
+    --bg-start: #0d1117; --bg-end: #161b22;
+    --card-bg: rgba(22, 27, 34, 0.85);
+    --text-primary: #f0f6fc; --text-secondary: #8b949e;
+    --border-color: rgba(255, 255, 255, 0.1);
+    --accent: #39ff14; --accent-glow: rgba(57, 255, 20, 0.2);
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  body {
+    background-image: linear-gradient(160deg, var(--bg-start) 0%, var(--bg-end) 100%);
+    color: var(--text-primary);
+    font-family: var(--font-family);
+    margin: 0; padding: 30px;
+    min-height: 100vh;
+    backdrop-filter: blur(10px);
+  }
+  .container { max-width: 1400px; margin: 0 auto; }
+  header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 30px; padding-bottom: 20px;
+    border-bottom: 1px solid var(--border-color);
+  }
+  header h1 { font-size: 28px; font-weight: 700; margin: 0; color: var(--text-primary); }
+  .card {
+    background: var(--card-bg);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    padding: 30px; border-radius: 16px;
+    box-shadow: var(--shadow);
+    margin-bottom: 30px;
+    border: 1px solid var(--border-color);
+    transition: all 0.3s ease;
+  }
+  .btn {
+    padding: 10px 20px; border-radius: 10px;
+    border: 1px solid var(--border-color);
+    background: transparent; color: var(--text-secondary);
+    cursor: pointer; font-weight: 600;
+    transition: all 0.2s ease;
+  }
+  .btn:hover { background: var(--accent); color: var(--bg-start); border-color: var(--accent); box-shadow: 0 0 15px var(--accent-glow); }
+  .btn-primary { background: var(--accent); color: #0d1117; border-color: var(--accent); }
+  .filter-input {
+    padding: 12px; border-radius: 10px;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-end); color: var(--text-primary);
+  }
+  select[multiple] { height: 120px; }
+  .tabs-nav { display: flex; gap: 10px; border-bottom: 1px solid var(--border-color); margin-bottom: 30px; }
+  .tab-btn {
+    padding: 12px 20px; cursor: pointer; border: none; background-color: transparent;
+    color: var(--text-secondary); border-bottom: 3px solid transparent;
+    font-weight: 600; font-size: 16px;
+    transition: all 0.2s ease; margin-bottom: -1px;
+  }
+  .tab-btn:hover { color: var(--text-primary); }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+  #filteredGamesContainer { margin-top: 25px; max-height: 400px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 12px; }
+  .games-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .games-table th, .games-table td { padding: 12px 15px; text-align: left; border-bottom: 1px solid var(--border-color); }
+  .games-table thead th { position: sticky; top: 0; background-color: var(--card-bg); backdrop-filter: blur(5px); font-weight: 600; color: var(--text-secondary); }
+  .games-table tbody tr:hover { background-color: rgba(255,255,255,0.05); }
+  .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }
+  .kpi-card {
+    background: transparent; padding: 20px; border-radius: 12px;
+    border: 1px solid var(--border-color);
+    position: relative; overflow: hidden;
+  }
+  .kpi-card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+      border-radius: 12px; border: 2px solid transparent;
+      background: linear-gradient(135deg, var(--accent), transparent, transparent) border-box;
+      -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: destination-out;
+      mask-composite: exclude;
+  }
+  .kpi-card .label { font-size: 15px; color: var(--text-secondary); margin-bottom: 8px; }
+  .kpi-card .value { font-size: 32px; font-weight: 700; color: var(--text-primary); }
+  .kpi-card .value span { color: var(--accent); }
+  .chart-title-container { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+  .chart-title-container h4 { margin: 0; font-size: 20px; }
+  .download-btn { cursor: pointer; background: transparent; border: 1px solid var(--border-color); border-radius: 8px; padding: 8px; color: var(--text-secondary); display: flex; align-items: center; justify-content: center; }
+  .download-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .download-btn svg { width: 18px; height: 18px; }
+  .filter-explanation { font-size: 14px; color: var(--text-secondary); background: transparent; border: 1px solid var(--border-color); border-radius: 12px; padding: 15px; margin-top: 25px; margin-bottom: 0; }
+  .games-table th[data-sort-by] { cursor: pointer; user-select: none; }
+  .games-table th[data-sort-by]::after { content: '↕'; display: inline-block; margin-left: 8px; opacity: 0.3; }
+  .games-table th.sorted-asc::after { content: '↑'; opacity: 1; color: var(--accent); }
+  .games-table th.sorted-desc::after { content: '↓'; opacity: 1; color: var(--accent); }
+  .selection-btn-group { display: flex; gap: 5px; margin-top: 5px; }
+  .selection-btn { flex-grow: 1; font-size: 12px; padding: 4px 8px; background: var(--bg-end); border: 1px solid var(--border-color); color: var(--text-secondary); border-radius: 6px; cursor: pointer; }
+  .selection-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .hidden { display: none !important; }
+  .controls-group { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; align-items: flex-end; }
+  </style>
+</head>
+<body data-theme="dark">
+  <div class="container" id="app">
+    <header>
+      <h1>Análise de Tempos - Brasileirão 2025</h1>
+      <div>
+        <label class="btn btn-primary"> Carregar CSV <input id="fileInput" type="file" accept=".csv" style="display:none"></label>
+        <button class="btn" id="toggleTheme">Alternar Tema</button>
+      </div>
+    </header>
+
+    <div id="mainContent" class="hidden">
+      <div class="card">
+        <h3>Filtros Gerais</h3>
+        <p class="filter-explanation"><b>Atenção:</b> Os filtros aqui definem a amostra de jogos para <b>todas</b> as análises abaixo. Para ver os dados do campeonato inteiro, selecione "Todos" no filtro de time.</p>
+        <div class="controls-group" style="margin-top: 20px;">
+          <div><label>Time:</label><br><select id="teamFilter" class="filter-input"></select></div>
+          <div><label>Mín Minutos (Bola Rolando):</label><br><input id="minBola" type="number" value="0" class="filter-input"></div>
+          <div><label>Máx Minutos (Bola Rolando):</label><br><input id="maxBola" type="number" value="150" class="filter-input"></div>
+          <button id="applyFilters" class="btn btn-primary">Aplicar Filtros</button>
+        </div>
+        <p style="margin-top: 20px;">Jogos filtrados: <strong id="matchesCount">0</strong></p>
+        <div id="filteredGamesContainer" class="hidden">
+            <table class="games-table"><thead id="gamesTableThead"><tr><th>#</th><th data-sort-by="jogo" data-sort-type="string">Jogo</th><th data-sort-by="arbitro" data-sort-type="string">Árbitro</th><th data-sort-by="var" data-sort-type="string">VAR</th><th data-sort-by="total" data-sort-type="number">Tempo Total</th><th data-sort-by="bola" data-sort-type="number">Bola Rolando</th><th data-sort-by="efficiency" data-sort-type="number">Bola Rolando (%)</th></tr></thead><tbody id="filteredGamesTbody"></tbody></table>
+        </div>
+      </div>
+
+      <nav class="tabs-nav" id="mainTabsNav">
+        <button class="tab-btn active" data-target="analysisCard">Análise por Categoria</button>
+        <button class="tab-btn" data-target="boxplotCard">Análise Comparativa</button>
+      </nav>
+
+      <div class="main-tabs-content">
+        <div id="analysisCard" class="main-tab-content">
+          <div class="card">
+            <div class="controls-group" style="grid-template-columns: minmax(250px, 1fr);"><label>Selecione a Métrica:</label><br><select id="metricFilter" class="filter-input"></select></div>
+            <hr style="border:none; border-top: 1px solid var(--border-color); margin: 25px 0;">
+            <div id="kpi-container" class="kpi-row">
+                <div class="kpi-card"><div class="label">Média Geral</div><div class="value"><span id="kpi-avg">-</span> min</div></div>
+                <div class="kpi-card"><div class="label">Valor Máximo</div><div class="value"><span id="kpi-max">-</span> min</div></div>
+                <div class="kpi-card"><div class="label">Valor Mínimo</div><div class="value"><span id="kpi-min">-</span> min</div></div>
+            </div>
+            <nav class="tabs-nav sub-tabs-nav" id="categoryTabsNav">
+                <button class="tab-btn active" data-target="teamChartContainer">Por Time</button>
+                <button class="tab-btn" data-target="arbitroChartContainer">Por Árbitro</button>
+                <button class="tab-btn" data-target="varChartContainer">Por Juiz do VAR</button>
+            </nav>
+            <div class="sub-tabs-content">
+                <div id="teamChartContainer" class="sub-tab-content"><div class="chart-title-container"><h4>Desempenho por Time</h4><button id="downloadTeamChart" class="download-btn"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 15a1 1 0 0 1-.7-.29l-4-4a1 1 0 1 1 1.4-1.42L12 12.59l3.3-3.3a1 1 0 0 1 1.4 1.42l-4 4a1 1 0 0 1-.7.29Z"/><path d="M12 22a1 1 0 0 1-1-1V2a1 1 0 0 1 2 0v19a1 1 0 0 1-1 1Z"/><path d="M21 22a1 1 0 0 1-1-1v-5a1 1 0 0 1 2 0v5a1 1 0 0 1-1 1Z"/><path d="M3 22a1 1 0 0 1-1-1v-5a1 1 0 0 1 2 0v5a1 1 0 0 1-1 1Z"/></svg></button></div><div class="chart-container"><canvas id="teamChart"></canvas></div></div>
+                <div id="arbitroChartContainer" class="sub-tab-content hidden"><div class="chart-title-container"><h4>Desempenho por Árbitro</h4><button id="downloadArbitroChart" class="download-btn"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 15a1 1 0 0 1-.7-.29l-4-4a1 1 0 1 1 1.4-1.42L12 12.59l3.3-3.3a1 1 0 0 1 1.4 1.42l-4 4a1 1 0 0 1-.7.29Z"/><path d="M12 22a1 1 0 0 1-1-1V2a1 1 0 0 1 2 0v19a1 1 0 0 1-1 1Z"/><path d="M21 22a1 1 0 0 1-1-1v-5a1 1 0 0 1 2 0v5a1 1 0 0 1-1 1Z"/><path d="M3 22a1 1 0 0 1-1-1v-5a1 1 0 0 1 2 0v5a1 1 0 0 1-1 1Z"/></svg></button></div><div class="chart-container"><canvas id="arbitroChart"></canvas></div></div>
+                <div id="varChartContainer" class="sub-tab-content hidden"><div class="chart-title-container"><h4>Desempenho por Juiz do VAR</h4><button id="downloadVarChart" class="download-btn"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 15a1 1 0 0 1-.7-.29l-4-4a1 1 0 1 1 1.4-1.42L12 12.59l3.3-3.3a1 1 0 0 1 1.4 1.42l-4 4a1 1 0 0 1-.7.29Z"/><path d="M12 22a1 1 0 0 1-1-1V2a1 1 0 0 1 2 0v19a1 1 0 0 1-1 1Z"/><path d="M21 22a1 1 0 0 1-1-1v-5a1 1 0 0 1 2 0v5a1 1 0 0 1-1 1Z"/><path d="M3 22a1 1 0 0 1-1-1v-5a1 1 0 0 1 2 0v5a1 1 0 0 1-1 1Z"/></svg></button></div><div class="chart-container"><canvas id="varChart"></canvas></div></div>
+            </div>
+          </div>
+        </div>
+        <div id="boxplotCard" class="main-tab-content hidden">
+          <div class="card">
+            <h3>Análise Comparativa</h3>
+            <div class="controls-group">
+              <div><label>Comparar por:</label><br><select id="boxplotCompareBy" class="filter-input"><option value="team">Times</option><option value="arbitro">Árbitro</option><option value="var">Juiz do VAR</option></select></div>
+              <div id="multiSelectContainer"><label id="multiSelectLabel">Times:</label><br><select id="boxplotMultiSelect" class="filter-input" multiple></select><div class="selection-btn-group"><button id="selectAllBtn" class="selection-btn">Selecionar Todos</button><button id="clearAllBtn" class="selection-btn">Limpar Seleção</button></div></div>
+              <div id="teamFilterContainer" class="hidden"><label>Filtrar por Time:</label><br><select id="boxplotTeamSingleFilter" class="filter-input"></select></div>
+              <div id="arbitroFilterContainer"><label>Filtrar por Árbitro:</label><br><select id="boxplotArbitroFilter" class="filter-input"></select></div>
+              <div id="varFilterContainer"><label>Filtrar por Juiz do VAR:</label><br><select id="boxplotVarFilter" class="filter-input"></select></div>
+              <div><label>Métrica:</label><br><select id="boxplotCategoryFilter" class="filter-input"></select></div>
+              <div><button id="generateBoxplotBtn" class="btn btn-primary" style="width:100%;">Gerar Gráfico</button></div>
+            </div>
+            <div class="chart-title-container" style="margin-top:25px;"><h4>Distribuição Comparativa</h4><button id="downloadBoxplotChart" class="download-btn"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 15a1 1 0 0 1-.7-.29l-4-4a1 1 0 1 1 1.4-1.42L12 12.59l3.3-3.3a1 1 0 0 1 1.4 1.42l-4 4a1 1 0 0 1-.7.29Z"/><path d="M12 22a1 1 0 0 1-1-1V2a1 1 0 0 1 2 0v19a1 1 0 0 1-1 1Z"/><path d="M21 22a1 1 0 0 1-1-1v-5a1 1 0 0 1 2 0v5a1 1 0 0 1-1 1Z"/><path d="M3 22a1 1 0 0 1-1-1v-5a1 1 0 0 1 2 0v5a1 1 0 0 1-1 1Z"/></svg></button></div>
+            <div class="chart-container"><canvas id="boxplotChart"></canvas></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  let allData = [], charts = {}, filteredData = [];
+  let teams = [], arbitros = [], vars = [];
+  let currentSortBy = 'total';
+  let currentSortOrder = 'desc';
+
+  const TOTAL = 'TEMPO_TOTAL', BOLA = 'BOLA_ROLANDO';
+  const CATS = ['TIRO DE META','FALTAS','LATERAIS','ESCANTEIOS','OUTROS'];
+  
+  const populate = (el, items, hasAllOption = false) => { el.innerHTML = hasAllOption ? '<option value="">Todos</option>' : ''; items.forEach(item => el.add(new Option(item, item))); };
+  const secondsToMMSS = s => { if (s === null || s === undefined) return 'N/A'; const minutes = Math.floor(s / 60); const seconds = s % 60; return `${minutes.toString().padStart(2,'0')}:${seconds.toString().padStart(2,'0')}`; };
+  const timeToS = t => { if(!t || typeof t !== 'string') return 0; const p=t.split(':').map(Number); return p.length===2?p[0]*60+p[1]:0; };
+  const parseCSV = csvText => { const lines = csvText.trim().split('\n'); const header = lines[0].trim().split(';').map(h => h.trim()); const getIndex = name => header.indexOf(name); const indices = { t1: getIndex('TIME1'), t2: getIndex('TIME2'), arb: getIndex('ÁRBITRO'), var: getIndex('VAR'), total: getIndex('TEMPO TOTAL'), bola: getIndex('BOLA ROLANDO'), tm1: getIndex('TIRO DE META (TIME1)'), tm2: getIndex('TIRO DE META (TIME2)'), f1: getIndex('FALTAS (TIME1)'), f2: getIndex('FALTAS (TIME2)'), l1: getIndex('LATERAIS (TIME1)'), l2: getIndex('LATERAIS (TIME2)'), e1: getIndex('ESCANTEIOS (TIME1)'), e2: getIndex('ESCANTEIOS (TIME2)'), o1: getIndex('OUTROS (TIME1)'), o2: getIndex('OUTROS (TIME2)'), }; if (indices.total === -1 || indices.bola === -1) { alert('Erro: Coluna "TEMPO TOTAL" ou "BOLA ROLANDO" não encontrada. Verifique o cabeçalho do CSV.'); return []; } return lines.slice(1).map(line => { const values = line.trim().split(';'); const tA = values[indices.t1]; const tB = values[indices.t2]; if (!tA || !tB) return null; return { tA, tB, arbitro: values[indices.arb], var: values[indices.var], total: timeToS(values[indices.total]), bola: timeToS(values[indices.bola]), cats: { [tA]: { 'TIRO DE META': timeToS(values[indices.tm1]), 'FALTAS': timeToS(values[indices.f1]), 'LATERAIS': timeToS(values[indices.l1]), 'ESCANTEIOS': timeToS(values[indices.e1]), 'OUTROS': timeToS(values[indices.o1]) }, [tB]: { 'TIRO DE META': timeToS(values[indices.tm2]), 'FALTAS': timeToS(values[indices.f2]), 'LATERAIS': timeToS(values[indices.l2]), 'ESCANTEIOS': timeToS(values[indices.e2]), 'OUTROS': timeToS(values[indices.o2]) } } }; }).filter(Boolean); };
+  
+  const getChartOptions = (chartData, isBoxplot = false) => {
+    const allValues = chartData.flatMap(d => d.data).flat();
+    if (allValues.length === 0) return { scales: { x: {}, y: {} } };
+    const dataMin = Math.min(...allValues);
+    const dataMax = Math.max(...allValues);
+    return {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: isBoxplot, labels: { font: { weight: 'bold' } } }, tooltip: { callbacks: { label: function(context) { if (isBoxplot) return context.formattedValue; const value = context.parsed.x; const count = context.dataset.counts[context.dataIndex]; return `Média: ${value.toFixed(1)} min (${count} jogos)`; } } } },
+      scales: {
+        x: { title: { display: true, text: 'Minutos', font: { weight: 'bold' } }, min: Math.floor(dataMin * 0.95), max: Math.ceil(dataMax * 1.05) },
+        y: { ticks: { font: { weight: 'bold' } } }
+      }
+    };
+  };
+
+  const renderChart = (id, type, labels, datasets, options) => { if(charts[id]) charts[id].destroy(); const canvas = document.getElementById(id); const container = canvas.closest('.chart-container'); const dynamicHeight = Math.max(400, 80 + labels.length * 35); container.style.height = `${dynamicHeight}px`; charts[id] = new Chart(canvas, { type, data: { labels, datasets }, options }); };
+  const calculateAndDisplayGlobalKPIs = (games, metric) => { if (games.length === 0) { ['kpi-avg', 'kpi-max', 'kpi-min'].forEach(id => document.getElementById(id).textContent = '-'); return; } const allValues = games.map(game => { if (metric === BOLA) return game.bola; if (metric === TOTAL) return game.total; return (game.cats[game.tA][metric] || 0) + (game.cats[game.tB][metric] || 0); }).map(val => val / 60); const total = allValues.reduce((sum, val) => sum + val, 0); document.getElementById('kpi-avg').textContent = (total / allValues.length).toFixed(1); document.getElementById('kpi-max').textContent = Math.max(...allValues).toFixed(1); document.getElementById('kpi-min').textContent = Math.min(...allValues).toFixed(1); };
+  const renderFilteredGamesTable = () => { const container = document.getElementById('filteredGamesContainer'); const tbody = document.getElementById('filteredGamesTbody'); if (filteredData.length === 0) { container.classList.add('hidden'); return; } tbody.innerHTML = filteredData.map((game, index) => { const efficiency = game.total > 0 ? ((game.bola / game.total) * 100).toFixed(1) + '%' : 'N/A'; return `<tr><td>${index + 1}</td><td>${game.tA} vs ${game.tB}</td><td>${game.arbitro || 'N/A'}</td><td>${game.var || 'N/A'}</td><td>${secondsToMMSS(game.total)}</td><td>${secondsToMMSS(game.bola)}</td><td><b>${efficiency}</b></td></tr>` }).join(''); container.classList.remove('hidden'); };
+  const sortFilteredData = () => { const modifier = currentSortOrder === 'asc' ? 1 : -1; const sortBy = currentSortBy; filteredData.sort((a, b) => { let valA, valB; if (sortBy === 'jogo') { valA = `${a.tA} vs ${a.tB}`; valB = `${b.tA} vs ${b.tB}`; } else if (sortBy === 'efficiency') { valA = a.total > 0 ? (a.bola / a.total) : 0; valB = b.total > 0 ? (b.bola / b.total) : 0; } else { valA = a[sortBy]; valB = b[sortBy]; } if (typeof valA === 'number') { return (valA - valB) * modifier; } return (valA || '').localeCompare(valB || '') * modifier; }); };
+  
+  const updateChartsAndTable = () => {
+    const min = (parseFloat(document.getElementById('minBola').value) || 0) * 60;
+    const max = (parseFloat(document.getElementById('maxBola').value) || 999) * 60;
+    const teamFilter = document.getElementById('teamFilter').value;
+    const metric = document.getElementById('metricFilter').value;
+    
+    filteredData = allData.filter(m => (!teamFilter || m.tA === teamFilter || m.tB === teamFilter) && m.bola >= min && m.bola <= max);
+    
+    document.getElementById('matchesCount').innerText = filteredData.length;
+    calculateAndDisplayGlobalKPIs(filteredData, metric);
+    sortFilteredData();
+    renderFilteredGamesTable();
+    updateTableHeadersUI();
+
+    const calculateStats = (category, data) => { const stats = {}; data.forEach(m => { const keys = (category === 'team') ? [m.tA, m.tB] : [m[category]]; keys.forEach(key => { if (!key) return; if (!stats[key]) stats[key] = { count: 0, totalValue: 0 }; stats[key].count++; if (metric === BOLA) stats[key].totalValue += m.bola; else if (metric === TOTAL) stats[key].totalValue += m.total; else { if (category === 'team') stats[key].totalValue += m.cats[key][metric] || 0; else stats[key].totalValue += (m.cats[m.tA][metric] || 0) + (m.cats[m.tB][metric] || 0); } }); }); return Object.keys(stats).map(key => ({ label: key, value: (stats[key].totalValue / stats[key].count / 60), count: stats[key].count })).sort((a, b) => b.value - a.value); };
+    
+    const accentColor = document.body.dataset.theme === 'dark' ? 'rgba(57, 255, 20, 0.7)' : 'rgba(0, 184, 148, 0.7)';
+    
+    const teamStats = calculateStats('team', filteredData); const teamData = { label: 'Média (min)', data: teamStats.map(s => s.value), counts: teamStats.map(s => s.count), backgroundColor: accentColor }; renderChart('teamChart', 'bar', teamStats.map(s => s.label), [teamData], getChartOptions([teamData]));
+    const arbitroStats = calculateStats('arbitro', filteredData); const arbitroData = { label: 'Média (min)', data: arbitroStats.map(s => s.value), counts: arbitroStats.map(s => s.count), backgroundColor: accentColor }; renderChart('arbitroChart', 'bar', arbitroStats.map(s => s.label), [arbitroData], getChartOptions([arbitroData]));
+    const varStats = calculateStats('var', filteredData); const varData = { label: 'Média (min)', data: varStats.map(s => s.value), counts: varStats.map(s => s.count), backgroundColor: accentColor }; renderChart('varChart', 'bar', varStats.map(s => s.label), [varData], getChartOptions([varData]));
+  };
+  
+  const updateTableHeadersUI = () => { document.querySelectorAll('#gamesTableThead th').forEach(th => { th.classList.remove('sorted-asc', 'sorted-desc'); if (th.dataset.sortBy === currentSortBy) { th.classList.add(`sorted-${currentSortOrder}`); } }); };
+  
+  document.getElementById('fileInput').onchange = e => {
+    const fr = new FileReader();
+    fr.onload = ev => {
+      allData = parseCSV(ev.target.result);
+      if(!allData.length) return;
+      document.getElementById('mainContent').classList.remove('hidden');
+      teams = [...new Set(allData.flatMap(m=>[m.tA,m.tB]))].sort();
+      arbitros = [...new Set(allData.map(m=>m.arbitro).filter(Boolean))].sort();
+      vars = [...new Set(allData.map(m=>m.var).filter(Boolean))].sort();
+      populate(document.getElementById('teamFilter'), teams, true);
+      populate(document.getElementById('boxplotArbitroFilter'), arbitros, true);
+      populate(document.getElementById('boxplotVarFilter'), vars, true);
+      populate(document.getElementById('boxplotTeamSingleFilter'), teams, true);
+      const metrics = [new Option('Tempo Total', TOTAL), new Option('Bola Rolando', BOLA), ...CATS.map(c => new Option(`Paralisação: ${c}`, c))];
+      ['metricFilter','boxplotCategoryFilter'].forEach(id => { const el = document.getElementById(id); el.innerHTML = ''; metrics.forEach(opt => el.add(new Option(opt.text, opt.value))); });
+      setupTabs('#mainTabsNav', 'main-tab-content'); setupTabs('#categoryTabsNav', 'sub-tab-content');
+      document.getElementById('boxplotCompareBy').onchange = updateBoxplotUI;
+      updateBoxplotUI(); updateChartsAndTable();
+      setupDownloadButton('downloadTeamChart', 'teamChart'); setupDownloadButton('downloadArbitroChart', 'arbitroChart'); setupDownloadButton('downloadVarChart', 'varChart'); setupDownloadButton('downloadBoxplotChart', 'boxplotChart');
+      document.getElementById('toggleTheme').onclick = () => { const body = document.querySelector('body'); const currentTheme = body.getAttribute('data-theme'); body.setAttribute('data-theme', currentTheme === 'light' ? 'dark' : 'light'); updateChartsAndTable(); };
+      document.getElementById('gamesTableThead').addEventListener('click', e => { const header = e.target.closest('th[data-sort-by]'); if (header) { const sortBy = header.dataset.sortBy; if (currentSortBy === sortBy) { currentSortOrder = currentSortOrder === 'asc' ? 'desc' : 'asc'; } else { currentSortBy = sortBy; currentSortOrder = 'asc'; } sortFilteredData(); renderFilteredGamesTable(); updateTableHeadersUI(); } });
+      document.getElementById('selectAllBtn').onclick = () => { const multiSelect = document.getElementById('boxplotMultiSelect'); for(let i=0; i<multiSelect.options.length; i++) { multiSelect.options[i].selected = true; } };
+      document.getElementById('clearAllBtn').onclick = () => { const multiSelect = document.getElementById('boxplotMultiSelect'); for(let i=0; i<multiSelect.options.length; i++) { multiSelect.options[i].selected = false; } };
+    };
+    fr.readAsText(e.target.files[0], 'UTF-8');
+  };
+
+  document.getElementById('applyFilters').onclick = updateChartsAndTable;
+  document.getElementById('metricFilter').onchange = updateChartsAndTable;
+  
+  const setupTabs = (navSelector, contentClass) => { const tabsNav = document.querySelector(navSelector); tabsNav.addEventListener('click', e => { if (e.target.classList.contains('tab-btn')) { const targetId = e.target.getAttribute('data-target'); tabsNav.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active')); e.target.classList.add('active'); document.querySelectorAll(`.${contentClass}`).forEach(content => content.classList.add('hidden')); document.getElementById(targetId).classList.remove('hidden'); } }); };
+  const updateBoxplotUI = () => { const compareBy = document.getElementById('boxplotCompareBy').value; const multiSelect = document.getElementById('boxplotMultiSelect'); const multiSelectLabel = document.getElementById('multiSelectLabel'); document.getElementById('teamFilterContainer').classList.toggle('hidden', compareBy === 'team'); document.getElementById('arbitroFilterContainer').classList.toggle('hidden', compareBy === 'arbitro'); document.getElementById('varFilterContainer').classList.toggle('hidden', compareBy === 'var'); if (compareBy === 'team') { multiSelectLabel.textContent = 'Times:'; populate(multiSelect, teams); } else if (compareBy === 'arbitro') { multiSelectLabel.textContent = 'Árbitros:'; populate(multiSelect, arbitros); } else if (compareBy === 'var') { multiSelectLabel.textContent = 'Juízes do VAR:'; populate(multiSelect, vars); } };
+  const setupDownloadButton = (btnId, chartId) => { document.getElementById(btnId).addEventListener('click', function() { const chartCanvas = document.getElementById(chartId); const chartElementToCapture = chartCanvas.closest('.sub-tab-content') || chartCanvas.closest('.main-tab-content'); html2canvas(chartElementToCapture, { backgroundColor: getComputedStyle(document.body).getPropertyValue('--card-bg') }).then(canvas => { const link = document.createElement('a'); link.download = `${chartId}_export.png`; link.href = canvas.toDataURL('image/png'); link.click(); }); }); };
+  
+  const generateBoxplotChart = () => {
+    const compareMode = document.getElementById('boxplotCompareBy').value;
+    const metric = document.getElementById('boxplotCategoryFilter').value;
+    const itemsToCompare = Array.from(document.getElementById('boxplotMultiSelect').selectedOptions).map(o=>o.value);
+    if(!itemsToCompare.length) return alert(`Selecione pelo menos um item para comparar.`);
+    const selectedTeam = document.getElementById('boxplotTeamSingleFilter').value;
+    const selectedArbitro = document.getElementById('boxplotArbitroFilter').value;
+    const selectedVar = document.getElementById('boxplotVarFilter').value;
+    let filteredMatches = allData.filter(m => {
+        if (compareMode !== 'team' && selectedTeam && (m.tA !== selectedTeam && m.tB !== selectedTeam)) return false;
+        if (compareMode !== 'arbitro' && selectedArbitro && m.arbitro !== selectedArbitro) return false;
+        if (compareMode !== 'var' && selectedVar && m.var !== selectedVar) return false;
+        return true;
+    });
+    const vals = {};
+    itemsToCompare.forEach(t => vals[t] = []);
+    filteredMatches.forEach(m => {
+      let value;
+      if (compareMode === 'team') {
+          [m.tA, m.tB].forEach(team => {
+              if (itemsToCompare.includes(team)) {
+                  if (metric === BOLA) value = m.bola; else if (metric === TOTAL) value = m.total; else value = m.cats[team][metric] || 0;
+                  vals[team].push(value / 60);
+              }
+          });
+      } else {
+          const key = m[compareMode];
+          if (itemsToCompare.includes(key)) {
+              if (metric === BOLA) value = m.bola; else if (metric === TOTAL) value = m.total; else value = (m.cats[m.tA][metric] || 0) + (m.cats[m.tB][metric] || 0);
+              vals[key].push(value / 60);
+          }
+      }
+    });
+    const validItems = itemsToCompare.filter(t => vals[t].length > 0);
+    if (!validItems.length) return alert('Nenhum dado encontrado para a combinação de filtros selecionada.');
+    
+    const accentColor = document.body.dataset.theme === 'dark' ? '#39ff14' : '#00b894';
+    const accentColorTransparent = document.body.dataset.theme === 'dark' ? 'rgba(57, 255, 20, 0.5)' : 'rgba(0, 184, 148, 0.5)';
+
+    const chartData = [{ label: 'Distribuição', data: validItems.map(t => vals[t]), backgroundColor: accentColorTransparent, borderColor: accentColor, borderWidth: 2, outlierRadius: 4, itemRadius: 3 }];
+    const labelsWithCount = validItems.map(item => `${item} (${vals[item].length}j)`);
+    renderChart('boxplotChart', 'boxplot', labelsWithCount, chartData, getChartOptions(chartData, true));
+  };
+  document.getElementById('generateBoxplotBtn').onclick = generateBoxplotChart;
+
+</script>
+</body>
+</html>
